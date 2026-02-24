@@ -16,7 +16,7 @@ func BenchmarkSketchAddSymbol(b *testing.B) {
 		{"m=10000000", 10000000},
 	}
 	for _, bench := range benches {
-		s := make(Sketch[testSymbol], bench.size)
+		s := NewSketch[testSymbol](bench.size)
 		b.Run(bench.name, func(b *testing.B) {
 			b.SetBytes(testSymbolSize)
 			for i := 0; i < b.N; i++ {

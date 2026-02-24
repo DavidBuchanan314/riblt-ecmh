@@ -1,5 +1,7 @@
 package riblt
 
+import "github.com/gtank/ristretto255"
+
 // symbolMapping is a mapping from a source symbol to a coded symbol. The
 // symbols are identified by their indices in codingWindow.
 type symbolMapping struct {
@@ -59,8 +61,7 @@ type codingWindow[T Symbol[T]] struct {
 
 // addSymbol inserts a symbol to the codingWindow.
 func (e *codingWindow[T]) addSymbol(t T) {
-	th := HashedSymbol[T]{t, t.Hash()}
-	e.addHashedSymbol(th)
+	e.addHashedSymbol(newHashedSymbol(t))
 }
 
 // addHashedSymbol inserts a HashedSymbol to the codingWindow.
@@ -130,7 +131,9 @@ func (e *Encoder[T]) AddHashedSymbol(s HashedSymbol[T]) {
 
 // ProduceNextCodedSymbol returns the next coded symbol in the sequence.
 func (e *Encoder[T]) ProduceNextCodedSymbol() CodedSymbol[T] {
-	return (*codingWindow[T])(e).applyWindow(CodedSymbol[T]{}, add)
+	c := CodedSymbol[T]{}
+	c.Checksum = ristretto255.NewIdentityElement()
+	return (*codingWindow[T])(e).applyWindow(c, add)
 }
 
 // Reset clears e. It is more efficient to call Reset to reuse an existing

@@ -1,9 +1,9 @@
 package riblt_test
 
 import (
+	"crypto/sha512"
 	"encoding/binary"
 	"fmt"
-	"github.com/dchest/siphash"
 	"github.com/yangl1996/riblt"
 )
 
@@ -17,11 +17,11 @@ func (t item) XOR(t2 item) item {
 	return t ^ t2
 }
 
-// Hash hashes t using SipHash.
-func (t item) Hash() uint64 {
+// Hash returns a 64-byte hash of t using SHA-512.
+func (t item) Hash() [64]byte {
 	buf := [8]byte{}
 	binary.LittleEndian.PutUint64(buf[0:8], uint64(t))
-	return siphash.Hash(123, 456, buf[:])
+	return sha512.Sum512(buf[:])
 }
 
 func Example() {
@@ -61,5 +61,5 @@ func Example() {
 	// Output:
 	// 2 is exclusive to Alice
 	// 11 is exclusive to Bob
-	// 2 coded symbols sent
+	// 3 coded symbols sent
 }

@@ -6,7 +6,7 @@
 // call the bit strings "source symbols". Alice and Bob wish to distributedly
 // compute the symmetric difference of their sets, i.e., source symbols that
 // are exclusively present on either Alice or Bob but not both computers.
-// 
+//
 // Rateless IBLTs operate by defining an infinite sequence of "coded symbols"
 // for any set. The coded symbol sequences have two strong properties. First,
 // for any two sets, prefixes of their coded symbol sequences alone are
@@ -29,6 +29,12 @@
 // example.
 package riblt
 
+import (
+	"encoding/binary"
+
+	"github.com/gtank/ristretto255"
+)
+
 // Symbol is the interface that source symbols (set elements being reconciled)
 // should implement. It specifies a Boolean group, where type T (or its subset)
 // is the underlying set, and $ is the group operation. It should satisfy the
@@ -48,26 +54,36 @@ type Symbol[T any] interface {
 	// fixed-length byte strings), it can implement any operation that satisfy
 	// the aforementioned properties.
 	XOR(t2 T) T
-	// Hash returns the hash of the method receiver. It must not modify the
-	// method receiver. It must not be homomorphic over the group operation.
-	// That is, the probability that
-	//   (a $ b).Hash() == a.Hash() ^ b.Hash()
-	// must be negligible. Here, ^ on the right-hand side is the bitwise
-	// exclusive-or operation.
-	Hash() uint64
+	// Hash returns a 64-byte hash of the method receiver. It must not modify
+	// the method receiver. The first 8 bytes are used as the PRNG seed for
+	// random mapping, and the full 64 bytes are used to derive an ECMH
+	// checksum point via ristretto255. The hash must not be homomorphic over
+	// the group operation.
+	Hash() [64]byte
 }
 
-// HashedSymbol is the bundle of a symbol and its hash computed using its Hash
-// method.
+// HashedSymbol is the bundle of a symbol, its PRNG seed, and its ECMH
+// checksum point, all derived from its Hash method.
 type HashedSymbol[T Symbol[T]] struct {
-	Symbol T
-	Hash   uint64
+	Symbol   T
+	Hash     uint64
+	Checksum *ristretto255.Element
 }
 
 // CodedSymbol is a coded symbol produced by a Rateless IBLT encoder.
 type CodedSymbol[T Symbol[T]] struct {
 	HashedSymbol[T]
 	Count int64
+}
+
+// newHashedSymbol constructs a HashedSymbol from a source symbol by calling
+// its Hash method, extracting the PRNG seed from the first 8 bytes, and
+// deriving the ECMH checksum point from the full 64 bytes.
+func newHashedSymbol[T Symbol[T]](s T) HashedSymbol[T] {
+	buf := s.Hash()
+	hash := binary.LittleEndian.Uint64(buf[:8])
+	checksum, _ := new(ristretto255.Element).SetUniformBytes(buf[:])
+	return HashedSymbol[T]{s, hash, checksum}
 }
 
 const (
@@ -79,7 +95,11 @@ const (
 // increments the counter, and remove decrements the counter.
 func (c CodedSymbol[T]) apply(s HashedSymbol[T], direction int64) CodedSymbol[T] {
 	c.Symbol = c.Symbol.XOR(s.Symbol)
-	c.Hash ^= s.Hash
+	if direction == add {
+		c.Checksum = new(ristretto255.Element).Add(c.Checksum, s.Checksum)
+	} else {
+		c.Checksum = new(ristretto255.Element).Subtract(c.Checksum, s.Checksum)
+	}
 	c.Count += direction
 	return c
 }

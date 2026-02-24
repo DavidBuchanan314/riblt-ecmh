@@ -1,11 +1,11 @@
 package riblt
 
 import (
+	"crypto/sha512"
 	"encoding/binary"
-	"github.com/dchest/siphash"
+	"strconv"
 	"testing"
 	"unsafe"
-	"strconv"
 )
 
 const testSymbolSize = 64
@@ -25,8 +25,8 @@ func (d testSymbol) XOR(t2 testSymbol) testSymbol {
 	return d
 }
 
-func (d testSymbol) Hash() uint64 {
-	return siphash.Hash(567, 890, d[:])
+func (d testSymbol) Hash() [64]byte {
+	return sha512.Sum512(d[:])
 }
 
 func newTestSymbol(i uint64) testSymbol {
@@ -109,13 +109,15 @@ func TestEncodeAndDecode(t *testing.T) {
 		s := newTestSymbol(nextId)
 		nextId += 1
 		dec.AddSymbol(s)
-		local[s.Hash()] = struct{}{}
+		h := s.Hash()
+		local[binary.LittleEndian.Uint64(h[:8])] = struct{}{}
 	}
 	for i := 0; i < nremote; i++ {
 		s := newTestSymbol(nextId)
 		nextId += 1
 		enc.AddSymbol(s)
-		remote[s.Hash()] = struct{}{}
+		h := s.Hash()
+		remote[binary.LittleEndian.Uint64(h[:8])] = struct{}{}
 	}
 	for i := 0; i < ncommon; i++ {
 		s := newTestSymbol(nextId)
@@ -146,4 +148,3 @@ func TestEncodeAndDecode(t *testing.T) {
 		t.Errorf("decoder not marked as decoded")
 	}
 }
-

@@ -1,7 +1,9 @@
 package riblt
 
+import "github.com/gtank/ristretto255"
+
 // Decoder computes the symmetric difference between two sets A, B. The Decoder
-// knows B (the local set) and expects coded symbols for A (the remote set). 
+// knows B (the local set) and expects coded symbols for A (the remote set).
 type Decoder[T Symbol[T]] struct {
 	// coded symbols received so far
 	cs []CodedSymbol[T]
@@ -12,11 +14,29 @@ type Decoder[T Symbol[T]] struct {
 	// set of source symbols that are exclusive to the encoder
 	remote codingWindow[T]
 	// indices of coded symbols that can be decoded, i.e., degree equal to -1
-	// or 1 and sum of hash equal to hash of sum, or degree equal to 0 and sum
-	// of hash equal to 0
+	// or 1 and checksum equal to the expected point, or degree equal to 0 and
+	// checksum equal to identity
 	decodable []int
 	// number of coded symbols that are decoded
 	decoded int
+}
+
+// isDecodable checks whether a coded symbol can be decoded by comparing its
+// ECMH checksum against the expected point derived from its accumulated
+// symbol.
+func isDecodable[T Symbol[T]](c CodedSymbol[T]) bool {
+	switch c.Count {
+	case 1:
+		expected := newHashedSymbol(c.Symbol)
+		return c.Checksum.Equal(expected.Checksum) == 1
+	case -1:
+		expected := newHashedSymbol(c.Symbol)
+		return c.Checksum.Equal(new(ristretto255.Element).Negate(expected.Checksum)) == 1
+	case 0:
+		return c.Checksum.Equal(ristretto255.NewIdentityElement()) == 1
+	default:
+		return false
+	}
 }
 
 // Decoded returns true if and only if every existing coded symbols d received
@@ -39,8 +59,7 @@ func (d *Decoder[T]) Remote() []HashedSymbol[T] {
 // undefined behavior to call AddSymbol after AddCodedSymbol has been called
 // one or multiple times.
 func (d *Decoder[T]) AddSymbol(s T) {
-	th := HashedSymbol[T]{s, s.Hash()}
-	d.AddHashedSymbol(th)
+	d.AddHashedSymbol(newHashedSymbol(s))
 }
 
 // AddHashedSymbol adds a source symbol to B, the Decoder's local set. It is
@@ -61,12 +80,9 @@ func (d *Decoder[T]) AddCodedSymbol(c CodedSymbol[T]) {
 	// insert the new coded symbol
 	d.cs = append(d.cs, c)
 	// check if the coded symbol is decodable, and insert into decodable list if so
-	if (c.Count == 1 || c.Count == -1) && (c.Hash == c.Symbol.Hash()) {
-		d.decodable = append(d.decodable, len(d.cs)-1)
-	} else if c.Count == 0 && c.Hash == 0 {
+	if isDecodable(c) {
 		d.decodable = append(d.decodable, len(d.cs)-1)
 	}
-	return
 }
 
 func (d *Decoder[T]) applyNewSymbol(t HashedSymbol[T], direction int64) randomMapping {
@@ -93,7 +109,8 @@ func (d *Decoder[T]) applyNewSymbol(t HashedSymbol[T], direction int64) randomMa
 		// duplicates. On the other hand, it is fine that we insert all
 		// degree-1 or -1 decodable symbols, because we only see them in such
 		// state once.
-		if (d.cs[cidx].Count == -1 || d.cs[cidx].Count == 1) && d.cs[cidx].Hash == d.cs[cidx].Symbol.Hash() {
+		c := d.cs[cidx]
+		if (c.Count == 1 || c.Count == -1) && isDecodable(c) {
 			d.decodable = append(d.decodable, cidx)
 		}
 		m.nextIndex()
@@ -106,28 +123,22 @@ func (d *Decoder[T]) TryDecode() {
 	for didx := 0; didx < len(d.decodable); didx += 1 {
 		cidx := d.decodable[didx]
 		c := d.cs[cidx]
-		// We do not need to compare Hash and Symbol.Hash() below, because we
-		// have checked it before inserting into the decodable list. Per the
-		// invariant mentioned in the comments in applyNewSymbol, a decodable
-		// symbol does not turn undecodable, so there is no worry that
-		// additional source symbols have been peeled off a coded symbol after
-		// it was inserted into the decodable list and before we visit them
-		// here.
+		// We do not need to check decodability below, because we have checked
+		// it before inserting into the decodable list. Per the invariant
+		// mentioned in the comments in applyNewSymbol, a decodable symbol does
+		// not turn undecodable, so there is no worry that additional source
+		// symbols have been peeled off a coded symbol after it was inserted
+		// into the decodable list and before we visit them here.
 		switch c.Count {
 		case 1:
-			// allocate a symbol and then XOR with the sum, so that we are
-			// guaranted to copy the sum whether or not the symbol interface is
-			// implemented as a pointer
-			ns := HashedSymbol[T]{}
-			ns.Symbol = ns.Symbol.XOR(c.Symbol)
-			ns.Hash = c.Hash
+			// recover the source symbol and derive its hash and checksum
+			// from the symbol's Hash method
+			ns := newHashedSymbol(c.Symbol)
 			m := d.applyNewSymbol(ns, remove)
 			d.remote.addHashedSymbolWithMapping(ns, m)
 			d.decoded += 1
 		case -1:
-			ns := HashedSymbol[T]{}
-			ns.Symbol = ns.Symbol.XOR(c.Symbol)
-			ns.Hash = c.Hash
+			ns := newHashedSymbol(c.Symbol)
 			m := d.applyNewSymbol(ns, add)
 			d.local.addHashedSymbolWithMapping(ns, m)
 			d.decoded += 1
