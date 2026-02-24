@@ -9,7 +9,15 @@ incremental hash function. This fork follows that suggestion, using addition of
 hash-to-curve'd ristretto255 group elements.
 
 A side-effect of this approach is that the 0th index of a coded symbol sequence
-acts as a strong cryptographic commitment of the complete set contents.
+acts as a strong cryptographic commitment of the complete set contents. i.e. it
+is an Eliptic Curve Multiset Hash https://arxiv.org/abs/1601.06502, although the
+"multi-" property is not used here.
+
+Additionally, the custom 64-bit PRNG has been replaced with ChaCha8, to mitigate
+seed collisions.
+
+Despite additional hardening, this fork should also be considered a research
+project.
 
 
 Original readme below:
