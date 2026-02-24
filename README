@@ -1,3 +1,21 @@
+The original implementation mitigated adversarial workloads via keyed hashing
+(SipHash), however this sacrifices universality and requires key distribution.
+Using an unkeyed but longer cryptographic hash fails to mitigate collision
+issues, as discussed in https://github.com/yangl1996/riblt/issues/3
+
+At https://github.com/yangl1996/riblt/issues/3#issuecomment-2183911075,
+Aljoscha Meyer suggests replacing xor-of-hashes (XHASH) with a more secure
+incremental hash function. This fork follows that suggestion, using addition of
+hash-to-curve'd ristretto255 group elements.
+
+A side-effect of this approach is that the 0th index of a coded symbol sequence
+acts as a strong cryptographic commitment of the complete set contents.
+
+
+Original readme below:
+
+---
+
 Implementation of Rateless Invertible Bloom Lookup Tables (Rateless IBLTs), as
 proposed in paper Practical Rateless Set Reconciliation by Lei Yang, Yossi
 Gilad, and Mohammad Alizadeh, which appeared in ACM SIGCOMM 2024. Full text is
