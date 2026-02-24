@@ -29,11 +29,7 @@
 // example.
 package riblt
 
-import (
-	"encoding/binary"
-
-	"github.com/gtank/ristretto255"
-)
+import "github.com/gtank/ristretto255"
 
 // Symbol is the interface that source symbols (set elements being reconciled)
 // should implement. It specifies a Boolean group, where type T (or its subset)
@@ -66,7 +62,7 @@ type Symbol[T any] interface {
 // checksum point, all derived from its Hash method.
 type HashedSymbol[T Symbol[T]] struct {
 	Symbol   T
-	Hash     uint64
+	Seed     [32]byte
 	Checksum *ristretto255.Element
 }
 
@@ -77,13 +73,15 @@ type CodedSymbol[T Symbol[T]] struct {
 }
 
 // newHashedSymbol constructs a HashedSymbol from a source symbol by calling
-// its Hash method, extracting the PRNG seed from the first 8 bytes, and
+// its Hash method, extracting the PRNG seed from the first 32 bytes, and
 // deriving the ECMH checksum point from the full 64 bytes.
 func newHashedSymbol[T Symbol[T]](s T) HashedSymbol[T] {
 	buf := s.Hash()
-	hash := binary.LittleEndian.Uint64(buf[:8])
+	var seed [32]byte
+	copy(seed[:], buf[:32])
 	checksum, _ := new(ristretto255.Element).SetUniformBytes(buf[:])
-	return HashedSymbol[T]{s, hash, checksum}
+	return HashedSymbol[T]{s, seed, checksum}
+
 }
 
 const (

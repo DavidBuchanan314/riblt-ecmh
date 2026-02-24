@@ -21,7 +21,7 @@ func NewSketch[T Symbol[T]](size int) Sketch[T] {
 
 // AddHashedSymbol inserts source symbol t to the set of which s is a sketch.
 func (s Sketch[T]) AddHashedSymbol(t HashedSymbol[T]) {
-	m := randomMapping{t.Hash, 0}
+	m := newRandomMapping(t.Seed)
 	for m.lastIndex < len(s) {
 		idx := m.lastIndex
 		s[idx].Symbol = s[idx].Symbol.XOR(t.Symbol)
@@ -34,7 +34,7 @@ func (s Sketch[T]) AddHashedSymbol(t HashedSymbol[T]) {
 // RemoveHashedSymbol deletes source symbol t from the set of which s is a
 // sketch.
 func (s Sketch[T]) RemoveHashedSymbol(t HashedSymbol[T]) {
-	m := randomMapping{t.Hash, 0}
+	m := newRandomMapping(t.Seed)
 	for m.lastIndex < len(s) {
 		idx := m.lastIndex
 		s[idx].Symbol = s[idx].Symbol.XOR(t.Symbol)

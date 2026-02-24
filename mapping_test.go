@@ -5,7 +5,7 @@ import (
 )
 
 func BenchmarkMapping(b *testing.B) {
-	m := randomMapping{123456789, 0}
+	m := newRandomMapping([32]byte{1, 2, 3, 4, 5, 6, 7, 8})
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		m.nextIndex()

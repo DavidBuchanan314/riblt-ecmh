@@ -98,8 +98,8 @@ func BenchmarkEncodeAndDecode(bc *testing.B) {
 func TestEncodeAndDecode(t *testing.T) {
 	enc := Encoder[testSymbol]{}
 	dec := Decoder[testSymbol]{}
-	local := make(map[uint64]struct{})
-	remote := make(map[uint64]struct{})
+	local := make(map[[32]byte]struct{})
+	remote := make(map[[32]byte]struct{})
 
 	var nextId uint64
 	nlocal := 200000/2
@@ -110,14 +110,18 @@ func TestEncodeAndDecode(t *testing.T) {
 		nextId += 1
 		dec.AddSymbol(s)
 		h := s.Hash()
-		local[binary.LittleEndian.Uint64(h[:8])] = struct{}{}
+		var seed [32]byte
+		copy(seed[:], h[:32])
+		local[seed] = struct{}{}
 	}
 	for i := 0; i < nremote; i++ {
 		s := newTestSymbol(nextId)
 		nextId += 1
 		enc.AddSymbol(s)
 		h := s.Hash()
-		remote[binary.LittleEndian.Uint64(h[:8])] = struct{}{}
+		var seed [32]byte
+		copy(seed[:], h[:32])
+		remote[seed] = struct{}{}
 	}
 	for i := 0; i < ncommon; i++ {
 		s := newTestSymbol(nextId)
@@ -136,10 +140,10 @@ func TestEncodeAndDecode(t *testing.T) {
 		}
 	}
 	for _, v := range dec.Remote() {
-		delete(remote, v.Hash)
+		delete(remote, v.Seed)
 	}
 	for _, v := range dec.Local() {
-		delete(local, v.Hash)
+		delete(local, v.Seed)
 	}
 	if len(remote) != 0 || len(local) != 0 {
 		t.Errorf("missing symbols: %d remote and %d local", len(remote), len(local))

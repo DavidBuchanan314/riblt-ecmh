@@ -66,7 +66,7 @@ func (e *codingWindow[T]) addSymbol(t T) {
 
 // addHashedSymbol inserts a HashedSymbol to the codingWindow.
 func (e *codingWindow[T]) addHashedSymbol(t HashedSymbol[T]) {
-	e.addHashedSymbolWithMapping(t, randomMapping{t.Hash, 0})
+	e.addHashedSymbolWithMapping(t, newRandomMapping(t.Seed))
 }
 
 // addHashedSymbolWithMapping inserts a HashedSymbol and the current state of its mapping generator to the codingWindow.

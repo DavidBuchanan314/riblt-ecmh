@@ -61,5 +61,5 @@ func Example() {
 	// Output:
 	// 2 is exclusive to Alice
 	// 11 is exclusive to Bob
-	// 3 coded symbols sent
+	// 6 coded symbols sent
 }
